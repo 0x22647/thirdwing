@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Thirdwing | Digital Agency</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    * {margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif;}
+    body {background-color: #f9f9f9; color: #333; line-height: 1.6;}
+    header {background: white; padding: 20px 50px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.05); position: sticky; top: 0; z-index: 1000;}
+    header h1 {font-size: 1.8rem; font-weight: 700;}
+    nav ul {display: flex; list-style: none;}
+    nav ul li {margin-left: 30px;}
+    nav ul li a {text-decoration: none; color: #333; font-weight: 500; transition: 0.3s;}
+    nav ul li a:hover {color: #6c63ff;}
+    .btn {padding: 12px 25px; background: #6c63ff; color: white; text-decoration: none; font-weight: 600; border-radius: 8px; transition: 0.3s; display: inline-block;}
+    .btn:hover {background: #5548d8;}
+    .hero {display: flex; align-items: center; justify-content: space-between; padding: 60px 50px; background: #ffffff; flex-wrap: wrap; gap: 30px;}
+    .hero-text {flex: 1; min-width: 280px;}
+    .hero-text h2 {font-size: 2.5rem; margin-bottom: 20px;}
+    .hero-text p {font-size: 1.1rem; margin-bottom: 30px; color: #555;}
+    .hero img {flex: 1; max-width: 500px; border-radius: 12px; width: 100%; object-fit: cover;}
+    .services, .about, .contact {padding: 60px 50px; text-align: center;}
+    .services h3, .about h3, .contact h3 {font-size: 2rem; margin-bottom: 40px;}
+    .service-cards {display: flex; justify-content: center; gap: 30px; flex-wrap: wrap;}
+    .card {background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); width: 280px; transition: 0.3s;}
+    .card img {width: 100%; height: 180px; object-fit: cover; border-radius: 8px; margin-bottom: 15px;}
+    .card:hover {transform: translateY(-5px); box-shadow: 0 8px 30px rgba(0,0,0,0.1);}
+    .about p {max-width: 800px; margin: 0 auto; color: #555;}
+    .contact form {max-width: 500px; margin: 0 auto; display: flex; flex-direction: column; gap: 15px;}
+    .contact input, .contact textarea {padding: 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 1rem;}
+    .contact button {background: #6c63ff; color: white; padding: 12px; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; font-weight: 600; transition: 0.3s;}
+    .contact button:hover {background: #5548d8;}
+    footer {background: #2b2b2b; color: white; padding: 30px 50px; text-align: center; margin-top: 50px;}
+    @media(max-width: 768px) {.hero {flex-direction: column; text-align: center;}}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Thirdwing</h1>
+    <nav>
+      <ul>
+        <li><a href="#">Home</a></li>
+        <li><a href="#services">Services</a></li>
+        <li><a href="#about">About</a></li>
+        <li><a href="#contact">Contact</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <section class="hero">
+    <div class="hero-text">
+      <h2>Empowering Brands in the Digital World</h2>
+      <p>At Thirdwing, we blend creativity, technology, and strategy to build impactful digital experiences that help brands soar above the competition.</p>
+      <a href="#services" class="btn">Explore Services</a>
+    </div>
+    <img src="https://picsum.photos/id/1015/900/600" alt="Digital Agency Illustration">
+  </section>
+
+  <section class="services" id="services">
+    <h3>Our Services</h3>
+    <div class="service-cards">
+      <div class="card">
+        <img src="https://picsum.photos/id/1011/500/300" alt="Web Design">
+        <h4>Web Design</h4>
+        <p>Modern, responsive, and visually appealing websites that tell your brand story effectively.</p>
+      </div>
+      <div class="card">
+        <img src="https://picsum.photos/id/1005/500/300" alt="SEO & Marketing">
+        <h4>SEO & Marketing</h4>
+        <p>Boost your online presence and drive organic traffic with data-driven strategies.</p>
+      </div>
+      <div class="card">
+        <img src="https://picsum.photos/id/1025/500/300" alt="Brand Strategy">
+        <h4>Brand Strategy</h4>
+        <p>Define your brand's voice, values, and vision to stand out in the marketplace.</p>
+      </div>
+      <div class="card">
+        <img src="https://picsum.photos/id/1018/500/300" alt="App Development">
+        <h4>App Development</h4>
+        <p>Custom mobile and web applications to bring your ideas to life.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="about" id="about">
+    <h3>About Us</h3>
+    <p>Thirdwing is a full-service digital agency dedicated to transforming brands through innovative strategies, creative design, and cutting-edge technology. Our team of experts works closely with you to craft tailored solutions that align with your goals and resonate with your audience.</p>
+  </section>
+
+  <section class="contact" id="contact">
+    <h3>Contact Us</h3>
+    <form>
+      <input type="text" placeholder="Your Name" required>
+      <input type="email" placeholder="Your Email" required>
+      <textarea rows="5" placeholder="Your Message" required></textarea>
+      <button type="submit">Send Message</button>
+    </form>
+  </section>
+
+  <footer>
+    <p>&copy; 2025 Thirdwing Digital Agency. All rights reserved.</p>
+  </footer>
+</body>
+</html>
