@@ -1,13 +1,390 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <link rel="manifest" href="/manifest.json" />
-    <title>Calc — Smart Calculator</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Gemini Calculator</title>
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#121212">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <!-- Custom CSS for theme variables, animations, and layout -->
+    <style>
+        /*
+        DESIGN NOTES V2:
+        - The layout is now fullscreen on mobile and a contained card on larger screens, matching the reference image.
+        - The header has been removed for a cleaner look. Icons are now placed in a minimal bar.
+        - The calculation engine was rebuilt to handle full expressions with parentheses and order of operations.
+        - Button layout and colors are updated to match the screenshot.
+        */
+
+        :root {
+            /* Default Dark Theme (Updated to match screenshot) */
+            --bg-color: #121212;
+            --calculator-bg: #121212;
+            --display-text-color: #e0e0e0;
+            --sub-display-text-color: #8a8a8e;
+            --button-bg: #2a2d37;
+            --button-hover-bg: #3c3f4e;
+            --button-text-color: #e0e0e0;
+            --operator-bg: #3c3f4e;
+            --operator-text-color: #57c8ff;
+            --action-bg: #3367D6; /* Google Blue */
+            --action-text-color: #e0e0e0;
+        }
+
+        html[data-theme='light'] {
+            --bg-color: #f0f2f5;
+            --calculator-bg: #ffffff;
+            --display-text-color: #2a2d37;
+            --sub-display-text-color: #6a6a6e;
+            --button-bg: #e8eaed;
+            --button-hover-bg: #d9dbe0;
+            --button-text-color: #2a2d37;
+            --operator-bg: #e0e6f0;
+            --operator-text-color: #007aff;
+            --action-bg: #007aff;
+            --action-text-color: #ffffff;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            transition: background-color 0.3s ease;
+            -webkit-tap-highlight-color: transparent; /* Disable tap highlight on mobile */
+        }
+        
+        .calculator-body {
+            background-color: var(--calculator-bg);
+        }
+
+        .calc-button {
+            transition: background-color 0.2s ease, transform 0.1s ease;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .calc-button:active {
+            transform: scale(0.95);
+        }
+
+        .ripple {
+            position: absolute;
+            border-radius: 50%;
+            background-color: rgba(255, 255, 255, 0.3);
+            transform: scale(0);
+            animation: ripple-effect 0.6s linear;
+        }
+
+        @keyframes ripple-effect {
+            to {
+                transform: scale(4);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center h-screen w-screen text-white overflow-hidden">
+    
+    <!-- Main Calculator Container -->
+    <div id="calculator" class="calculator-body w-full h-full md:max-w-sm md:h-auto md:rounded-[40px] shadow-2xl flex flex-col p-4 md:p-6" role="application" aria-label="Calculator">
+        
+        <!-- Minimal Header -->
+        <div class="flex justify-between items-center h-12 px-2 text-gray-400">
+             <button id="history-btn" aria-label="View History" class="p-2 rounded-full hover:bg-white/10 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
+            </button>
+             <button id="more-options" aria-label="More Options" class="p-2 rounded-full hover:bg-white/10 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+            </button>
+        </div>
+
+        <!-- Display Area -->
+        <div id="display" class="w-full text-right px-2 select-text flex-grow flex flex-col justify-end" aria-live="polite">
+            <div id="sub-display" class="h-8 text-lg md:text-xl" style="color: var(--sub-display-text-color);"></div>
+            <div id="main-display" class="text-5xl md:text-6xl font-bold break-words" style="color: var(--display-text-color);">0</div>
+        </div>
+
+        <!-- Button Grids -->
+        <div id="button-container" class="pt-4">
+            <!-- Main Button Pad -->
+            <div class="grid grid-cols-4 gap-3 md:gap-4">
+                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="AC" data-type="action" style="background-color: var(--action-bg); color: var(--action-text-color);">AC</button>
+                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="()" data-type="parentheses" style="background-color: var(--button-bg); color: var(--operator-text-color);">( )</button>
+                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="%" data-type="operator" style="background-color: var(--button-bg); color: var(--operator-text-color);">%</button>
+                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="/" data-type="operator" style="background-color: var(--button-bg); color: var(--operator-text-color);">÷</button>
+                
+                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="7" data-type="number" style="background-color: var(--button-bg); color: var(--button-text-color);">7</button>
+                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="8" data-type="number" style="background-color: var(--button-bg); color: var(--button-text-color);">8</button>
+                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="9" data-type="number" style="background-color: var(--button-bg); color: var(--button-text-color);">9</button>
+                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="*" data-type="operator" style="background-color: var(--button-bg); color: var(--operator-text-color);">×</button>
+                
+                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="4" data-type="number" style="background-color: var(--button-bg); color: var(--button-text-color);">4</button>
+                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="5" data-type="number" style="background-color: var(--button-bg); color: var(--button-text-color);">5</button>
+                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="6" data-type="number" style="background-color: var(--button-bg); color: var(--button-text-color);">6</button>
+                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="-" data-type="operator" style="background-color: var(--button-bg); color: var(--operator-text-color);">-</button>
+                
+                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="1" data-type="number" style="background-color: var(--button-bg); color: var(--button-text-color);">1</button>
+                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="2" data-type="number" style="background-color: var(--button-bg); color: var(--button-text-color);">2</button>
+                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="3" data-type="number" style="background-color: var(--button-bg); color: var(--button-text-color);">3</button>
+                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="+" data-type="operator" style="background-color: var(--button-bg); color: var(--operator-text-color);">+</button>
+                
+                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="0" data-type="number" style="background-color: var(--button-bg); color: var(--button-text-color);">0</button>
+                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="." data-type="number" style="background-color: var(--button-bg); color: var(--button-text-color);">.</button>
+                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="backspace" data-type="action" style="background-color: var(--button-bg); color: var(--operator-text-color);">⌫</button>
+                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="=" data-type="action" style="background-color: var(--action-bg); color: var(--action-text-color);">=</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- History Modal -->
+    <div id="history-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+        <div class="calculator-body w-full max-w-md rounded-2xl p-6 shadow-lg" style="background-color: #1f1f1f;">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold" style="color: var(--display-text-color);">History</h2>
+                <button id="close-history" class="p-2 rounded-full hover:bg-white/10 text-gray-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <div id="history-content" class="max-h-80 overflow-y-auto space-y-2 pr-2"></div>
+            <button id="clear-history" class="mt-4 w-full text-center p-3 rounded-lg" style="background-color: var(--action-bg); color: var(--action-text-color);">Clear History</button>
+        </div>
+    </div>
+
+    <!-- More Options Modal -->
+    <div id="options-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+        <div class="calculator-body w-full max-w-sm rounded-2xl p-6 shadow-lg" style="background-color: #1f1f1f;">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold" style="color: var(--display-text-color);">Options</h2>
+                <button id="close-options" class="p-2 rounded-full hover:bg-white/10 text-gray-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <div id="options-content" class="space-y-4">
+                 <button id="theme-switcher" class="w-full text-left p-3 rounded-lg flex items-center justify-between" style="background-color: var(--button-bg); color: var(--display-text-color);">
+                    <span>Switch Theme</span>
+                    <svg id="theme-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-400"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // DOM Elements
+            const mainDisplay = document.getElementById('main-display');
+            const subDisplay = document.getElementById('sub-display');
+            const buttonContainer = document.getElementById('button-container');
+            const historyBtn = document.getElementById('history-btn');
+            const historyModal = document.getElementById('history-modal');
+            const closeHistoryBtn = document.getElementById('close-history');
+            const clearHistoryBtn = document.getElementById('clear-history');
+            const historyContent = document.getElementById('history-content');
+            const moreOptionsBtn = document.getElementById('more-options');
+            const optionsModal = document.getElementById('options-modal');
+            const closeOptionsBtn = document.getElementById('close-options');
+            const themeSwitcher = document.getElementById('theme-switcher');
+            const themeIcon = document.getElementById('theme-icon');
+
+            // App State
+            let state = {
+                expression: '',
+                result: '0',
+                history: JSON.parse(localStorage.getItem('calculatorHistory')) || [],
+            };
+
+            const themes = ['dark', 'light'];
+            let currentThemeIndex = 0;
+
+            function updateDisplay() {
+                mainDisplay.textContent = state.expression || state.result;
+                subDisplay.textContent = state.expression ? state.result : '';
+
+                // Font scaling
+                const displayLength = (state.expression || state.result).length;
+                let fontSize = 3; // rem
+                if (displayLength > 9) {
+                    fontSize = 3 * (9 / displayLength);
+                }
+                mainDisplay.style.fontSize = `${Math.max(fontSize, 1.5)}rem`;
+            }
+
+            function sanitizeExpression(expr) {
+                // Replace visual operators with JS operators
+                let sanitized = expr.replace(/×/g, '*').replace(/÷/g, '/');
+                // Basic validation to prevent unsafe code execution
+                if (/[^0-9\.\+\-\*\/\(\)\s\%]/.test(sanitized)) {
+                    return null; // Invalid characters
+                }
+                return sanitized;
+            }
+
+            function calculate() {
+                if (!state.expression) return;
+                const sanitized = sanitizeExpression(state.expression);
+                if (sanitized === null) {
+                    state.result = 'Error';
+                    return;
+                }
+                try {
+                    // Using Function constructor is safer than eval()
+                    const result = new Function('return ' + sanitized)();
+                    const fullEntry = `${state.expression} = ${result}`;
+                    addToHistory(fullEntry);
+                    state.result = String(result);
+                    state.expression = '';
+                } catch (error) {
+                    state.result = 'Error';
+                    state.expression = '';
+                }
+            }
+
+            function handleInteraction(event) {
+                const target = event.target.closest('.calc-button');
+                if (!target) return;
+
+                const { key, type } = target.dataset;
+                vibrate();
+                createRipple(event);
+                
+                if (state.result === 'Error') {
+                    state.result = '0';
+                    state.expression = '';
+                }
+
+                if (type === 'number' || type === 'operator') {
+                    if (state.expression === '0' && key !== '.') state.expression = '';
+                    state.expression += key;
+                } else if (type === 'parentheses') {
+                    handleParentheses();
+                } else if (type === 'action') {
+                    handleAction(key);
+                }
+                
+                updateDisplay();
+            }
+
+            function handleParentheses() {
+                const openParenCount = (state.expression.match(/\(/g) || []).length;
+                const closeParenCount = (state.expression.match(/\)/g) || []).length;
+                const lastChar = state.expression.slice(-1);
+
+                if (lastChar === '' || lastChar === '(' || ['+','-','*','/','%'].includes(lastChar)) {
+                    state.expression += '(';
+                } else if (openParenCount > closeParenCount) {
+                     state.expression += ')';
+                } else {
+                     state.expression += '*(';
+                }
+            }
+
+            function handleAction(action) {
+                switch (action) {
+                    case '=':
+                        calculate();
+                        vibrate(20);
+                        break;
+                    case 'AC':
+                        state.expression = '';
+                        state.result = '0';
+                        break;
+
+                    case 'backspace':
+                        state.expression = state.expression.slice(0, -1);
+                        break;
+                }
+            }
+
+             // --- History ---
+            function addToHistory(entry) {
+                state.history.unshift(entry);
+                if (state.history.length > 50) state.history.pop();
+                localStorage.setItem('calculatorHistory', JSON.stringify(state.history));
+            }
+            
+            function showHistory() {
+                historyContent.innerHTML = state.history.length ? 
+                    state.history.map(item => `<div class="p-2 rounded-md" style="background-color: var(--button-bg); color: var(--display-text-color);">${item}</div>`).join('') :
+                    `<p style="color: var(--sub-display-text-color);">No history yet.</p>`;
+                historyModal.classList.remove('hidden');
+            }
+
+            // --- UI & UX ---
+            function createRipple(event) {
+                const button = event.target.closest('.calc-button');
+                if (button) {
+                    const circle = document.createElement("span");
+                    const diameter = Math.max(button.clientWidth, button.clientHeight);
+                    const radius = diameter / 2;
+                    
+                    circle.style.width = circle.style.height = `${diameter}px`;
+                    circle.style.left = `${event.clientX - (button.offsetLeft + radius)}px`;
+                    circle.style.top = `${event.clientY - (button.offsetTop + radius)}px`;
+                    circle.classList.add("ripple");
+                    
+                    const ripple = button.getElementsByClassName("ripple")[0];
+                    if (ripple) ripple.remove();
+                    
+                    button.appendChild(circle);
+                }
+            }
+            
+            function vibrate(duration = 10) {
+                if ('vibrate' in navigator) {
+                    navigator.vibrate(duration);
+                }
+            }
+
+            themeSwitcher.addEventListener('click', () => {
+                currentThemeIndex = (currentThemeIndex + 1) % themes.length;
+                const theme = themes[currentThemeIndex];
+                document.documentElement.setAttribute('data-theme', theme);
+                if(theme === 'light') themeIcon.innerHTML = `<path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707.707M6.343 6.343l-.707-.707m12.728 0l-.707-.707M6.343 17.657l-.707.707M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0z"></path>`;
+                else themeIcon.innerHTML = `<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>`;
+            });
+
+            // Event Listeners
+            buttonContainer.addEventListener('click', handleInteraction);
+            document.addEventListener('keydown', (e) => {
+                 const keyMap = {
+                    'Enter': '=', 'Escape': 'AC', 'Backspace': 'backspace',
+                    '0': '0', '1': '1', '2': '2', '3': '3', '4': '4', '5': '5', '6': '6', '7': '7', '8': '8', '9': '9',
+                    '.': '.', '+': '+', '-': '-', '*': '*', '/': '/', '%': '%', '(': '()', ')': '()'
+                };
+                if (keyMap[e.key]) {
+                    e.preventDefault();
+                    const button = document.querySelector(`.calc-button[data-key="${keyMap[e.key]}"]`);
+                    if (button) button.click();
+                }
+            });
+            historyBtn.addEventListener('click', showHistory);
+            closeHistoryBtn.addEventListener('click', () => historyModal.classList.add('hidden'));
+            clearHistoryBtn.addEventListener('click', () => {
+                state.history = [];
+                localStorage.removeItem('calculatorHistory');
+                showHistory();
+            });
+            moreOptionsBtn.addEventListener('click', () => optionsModal.classList.remove('hidden'));
+            closeOptionsBtn.addEventListener('click', () => optionsModal.classList.add('hidden'));
+
+            // Initial Load
+            updateDisplay();
+        });
+    </script>
+</body>
 </html>
+
