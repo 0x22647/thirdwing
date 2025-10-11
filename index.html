@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Gemini Calculator</title>
+    <title>AI Calculator</title>
 
     <!-- PWA Manifest -->
     <link rel="manifest" href="manifest.json">
@@ -17,22 +17,14 @@
     <!-- Google Fonts: Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-    <!-- Custom CSS for theme variables, animations, and layout -->
+    <!-- Custom CSS -->
     <style>
-        /*
-        DESIGN NOTES V2:
-        - The layout is now fullscreen on mobile and a contained card on larger screens, matching the reference image.
-        - The header has been removed for a cleaner look. Icons are now placed in a minimal bar.
-        - The calculation engine was rebuilt to handle full expressions with parentheses and order of operations.
-        - Button layout and colors are updated to match the screenshot.
-        */
-
         :root {
-            /* Default Dark Theme (Updated to match screenshot) */
-            --bg-color: #121212;
-            --calculator-bg: #121212;
+            /* Dark Theme */
+            --bg-color: #0a0e1a;
+            --calculator-bg: linear-gradient(145deg, #1a1d2e 0%, #0f1219 100%);
             --display-text-color: #e0e0e0;
             --sub-display-text-color: #8a8a8e;
             --button-bg: #2a2d37;
@@ -40,13 +32,18 @@
             --button-text-color: #e0e0e0;
             --operator-bg: #3c3f4e;
             --operator-text-color: #57c8ff;
-            --action-bg: #3367D6; /* Google Blue */
-            --action-text-color: #e0e0e0;
+            --action-bg: #3367D6;
+            --action-text-color: #ffffff;
+            --ai-input-bg: #1f2233;
+            --ai-input-border: #3c3f4e;
+            --ai-glow: rgba(51, 103, 214, 0.3);
+            --success-color: #4caf50;
+            --warning-color: #ff9800;
         }
 
         html[data-theme='light'] {
             --bg-color: #f0f2f5;
-            --calculator-bg: #ffffff;
+            --calculator-bg: linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%);
             --display-text-color: #2a2d37;
             --sub-display-text-color: #6a6a6e;
             --button-bg: #e8eaed;
@@ -56,30 +53,41 @@
             --operator-text-color: #007aff;
             --action-bg: #007aff;
             --action-text-color: #ffffff;
+            --ai-input-bg: #f5f7fa;
+            --ai-input-border: #d0d5dd;
+            --ai-glow: rgba(0, 122, 255, 0.2);
+            --success-color: #4caf50;
+            --warning-color: #ff9800;
         }
         
         body {
             font-family: 'Inter', sans-serif;
-            background-color: var(--bg-color);
+            background: var(--bg-color);
             transition: background-color 0.3s ease;
-            -webkit-tap-highlight-color: transparent; /* Disable tap highlight on mobile */
+            -webkit-tap-highlight-color: transparent;
         }
         
         .calculator-body {
-            background-color: var(--calculator-bg);
+            background: var(--calculator-bg);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
         }
 
         .calc-button {
-            transition: background-color 0.2s ease, transform 0.1s ease;
+            transition: all 0.2s ease;
             position: relative;
             overflow: hidden;
             display: flex;
             align-items: center;
             justify-content: center;
+            user-select: none;
         }
 
         .calc-button:active {
             transform: scale(0.95);
+        }
+
+        .calc-button:hover {
+            filter: brightness(1.1);
         }
 
         .ripple {
@@ -96,64 +104,155 @@
                 opacity: 0;
             }
         }
+
+        .ai-input-container {
+            position: relative;
+        }
+
+        .ai-input {
+            background: var(--ai-input-bg);
+            border: 2px solid var(--ai-input-border);
+            color: var(--display-text-color);
+            transition: all 0.3s ease;
+        }
+
+        .ai-input:focus {
+            outline: none;
+            border-color: var(--action-bg);
+            box-shadow: 0 0 20px var(--ai-glow);
+        }
+
+        .ai-badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .suggestion-item {
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .suggestion-item:hover {
+            background: var(--button-hover-bg);
+            transform: translateX(5px);
+        }
+
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .history-item {
+            transition: all 0.2s ease;
+        }
+
+        .history-item:hover {
+            background: var(--button-hover-bg) !important;
+            cursor: pointer;
+        }
+
+        .sparkle {
+            display: inline-block;
+            animation: sparkle 1.5s ease-in-out infinite;
+        }
+
+        @keyframes sparkle {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.1); }
+        }
     </style>
 </head>
-<body class="flex items-center justify-center h-screen w-screen text-white overflow-hidden">
+<body class="flex items-center justify-center min-h-screen w-screen text-white overflow-auto py-4">
     
     <!-- Main Calculator Container -->
-    <div id="calculator" class="calculator-body w-full h-full md:max-w-sm md:h-auto md:rounded-[40px] shadow-2xl flex flex-col p-4 md:p-6" role="application" aria-label="Calculator">
+    <div id="calculator" class="calculator-body w-full max-w-md mx-auto md:rounded-[40px] flex flex-col p-6 md:p-8" role="application" aria-label="AI Calculator">
         
-        <!-- Minimal Header -->
-        <div class="flex justify-between items-center h-12 px-2 text-gray-400">
-             <button id="history-btn" aria-label="View History" class="p-2 rounded-full hover:bg-white/10 transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
-            </button>
-             <button id="more-options" aria-label="More Options" class="p-2 rounded-full hover:bg-white/10 transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
-            </button>
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-4">
+            <div class="flex items-center gap-2">
+                <div class="ai-badge px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1">
+                    <span class="sparkle">✨</span> AI Powered
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <button id="history-btn" aria-label="View History" class="p-2 rounded-full hover:bg-white/10 transition-colors text-gray-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
+                </button>
+                <button id="more-options" aria-label="More Options" class="p-2 rounded-full hover:bg-white/10 transition-colors text-gray-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- AI Natural Language Input -->
+        <div class="ai-input-container mb-6 fade-in">
+            <input 
+                type="text" 
+                id="ai-input" 
+                class="ai-input w-full px-4 py-3 rounded-2xl text-base"
+                placeholder="Ask me anything... e.g., 'What is 25% of 200?'"
+                autocomplete="off"
+            />
+            <div id="suggestions" class="mt-2 space-y-1 hidden"></div>
         </div>
 
         <!-- Display Area -->
-        <div id="display" class="w-full text-right px-2 select-text flex-grow flex flex-col justify-end" aria-live="polite">
-            <div id="sub-display" class="h-8 text-lg md:text-xl" style="color: var(--sub-display-text-color);"></div>
-            <div id="main-display" class="text-5xl md:text-6xl font-bold break-words" style="color: var(--display-text-color);">0</div>
+        <div id="display" class="w-full text-right px-2 select-text mb-6" aria-live="polite">
+            <div id="sub-display" class="h-8 text-lg" style="color: var(--sub-display-text-color);"></div>
+            <div id="main-display" class="text-5xl font-bold break-words" style="color: var(--display-text-color);">0</div>
+        </div>
+
+        <!-- Quick Functions -->
+        <div class="grid grid-cols-4 gap-2 mb-4">
+            <button class="calc-button h-12 rounded-xl text-sm font-medium" data-fn="sqrt" style="background-color: var(--operator-bg); color: var(--operator-text-color);">√</button>
+            <button class="calc-button h-12 rounded-xl text-sm font-medium" data-fn="power" style="background-color: var(--operator-bg); color: var(--operator-text-color);">x²</button>
+            <button class="calc-button h-12 rounded-xl text-sm font-medium" data-fn="sin" style="background-color: var(--operator-bg); color: var(--operator-text-color);">sin</button>
+            <button class="calc-button h-12 rounded-xl text-sm font-medium" data-fn="cos" style="background-color: var(--operator-bg); color: var(--operator-text-color);">cos</button>
         </div>
 
         <!-- Button Grids -->
-        <div id="button-container" class="pt-4">
-            <!-- Main Button Pad -->
-            <div class="grid grid-cols-4 gap-3 md:gap-4">
-                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="AC" data-type="action" style="background-color: var(--action-bg); color: var(--action-text-color);">AC</button>
-                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="()" data-type="parentheses" style="background-color: var(--button-bg); color: var(--operator-text-color);">( )</button>
-                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="%" data-type="operator" style="background-color: var(--button-bg); color: var(--operator-text-color);">%</button>
-                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="/" data-type="operator" style="background-color: var(--button-bg); color: var(--operator-text-color);">÷</button>
+        <div id="button-container">
+            <div class="grid grid-cols-4 gap-3">
+                <button class="calc-button h-16 rounded-full text-2xl font-medium" data-key="AC" data-type="action" style="background-color: var(--action-bg); color: var(--action-text-color);">AC</button>
+                <button class="calc-button h-16 rounded-full text-2xl" data-key="()" data-type="parentheses" style="background-color: var(--button-bg); color: var(--operator-text-color);">( )</button>
+                <button class="calc-button h-16 rounded-full text-2xl" data-key="%" data-type="operator" style="background-color: var(--button-bg); color: var(--operator-text-color);">%</button>
+                <button class="calc-button h-16 rounded-full text-2xl" data-key="/" data-type="operator" style="background-color: var(--button-bg); color: var(--operator-text-color);">÷</button>
                 
-                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="7" data-type="number" style="background-color: var(--button-bg); color: var(--button-text-color);">7</button>
-                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="8" data-type="number" style="background-color: var(--button-bg); color: var(--button-text-color);">8</button>
-                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="9" data-type="number" style="background-color: var(--button-bg); color: var(--button-text-color);">9</button>
-                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="*" data-type="operator" style="background-color: var(--button-bg); color: var(--operator-text-color);">×</button>
+                <button class="calc-button h-16 rounded-full text-2xl" data-key="7" data-type="number" style="background-color: var(--button-bg); color: var(--button-text-color);">7</button>
+                <button class="calc-button h-16 rounded-full text-2xl" data-key="8" data-type="number" style="background-color: var(--button-bg); color: var(--button-text-color);">8</button>
+                <button class="calc-button h-16 rounded-full text-2xl" data-key="9" data-type="number" style="background-color: var(--button-bg); color: var(--button-text-color);">9</button>
+                <button class="calc-button h-16 rounded-full text-2xl" data-key="*" data-type="operator" style="background-color: var(--button-bg); color: var(--operator-text-color);">×</button>
                 
-                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="4" data-type="number" style="background-color: var(--button-bg); color: var(--button-text-color);">4</button>
-                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="5" data-type="number" style="background-color: var(--button-bg); color: var(--button-text-color);">5</button>
-                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="6" data-type="number" style="background-color: var(--button-bg); color: var(--button-text-color);">6</button>
-                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="-" data-type="operator" style="background-color: var(--button-bg); color: var(--operator-text-color);">-</button>
+                <button class="calc-button h-16 rounded-full text-2xl" data-key="4" data-type="number" style="background-color: var(--button-bg); color: var(--button-text-color);">4</button>
+                <button class="calc-button h-16 rounded-full text-2xl" data-key="5" data-type="number" style="background-color: var(--button-bg); color: var(--button-text-color);">5</button>
+                <button class="calc-button h-16 rounded-full text-2xl" data-key="6" data-type="number" style="background-color: var(--button-bg); color: var(--button-text-color);">6</button>
+                <button class="calc-button h-16 rounded-full text-2xl" data-key="-" data-type="operator" style="background-color: var(--button-bg); color: var(--operator-text-color);">−</button>
                 
-                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="1" data-type="number" style="background-color: var(--button-bg); color: var(--button-text-color);">1</button>
-                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="2" data-type="number" style="background-color: var(--button-bg); color: var(--button-text-color);">2</button>
-                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="3" data-type="number" style="background-color: var(--button-bg); color: var(--button-text-color);">3</button>
-                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="+" data-type="operator" style="background-color: var(--button-bg); color: var(--operator-text-color);">+</button>
+                <button class="calc-button h-16 rounded-full text-2xl" data-key="1" data-type="number" style="background-color: var(--button-bg); color: var(--button-text-color);">1</button>
+                <button class="calc-button h-16 rounded-full text-2xl" data-key="2" data-type="number" style="background-color: var(--button-bg); color: var(--button-text-color);">2</button>
+                <button class="calc-button h-16 rounded-full text-2xl" data-key="3" data-type="number" style="background-color: var(--button-bg); color: var(--button-text-color);">3</button>
+                <button class="calc-button h-16 rounded-full text-2xl" data-key="+" data-type="operator" style="background-color: var(--button-bg); color: var(--operator-text-color);">+</button>
                 
-                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="0" data-type="number" style="background-color: var(--button-bg); color: var(--button-text-color);">0</button>
-                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="." data-type="number" style="background-color: var(--button-bg); color: var(--button-text-color);">.</button>
-                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="backspace" data-type="action" style="background-color: var(--button-bg); color: var(--operator-text-color);">⌫</button>
-                <button class="calc-button h-16 md:h-20 rounded-full text-2xl md:text-3xl" data-key="=" data-type="action" style="background-color: var(--action-bg); color: var(--action-text-color);">=</button>
+                <button class="calc-button h-16 rounded-full text-2xl" data-key="0" data-type="number" style="background-color: var(--button-bg); color: var(--button-text-color);">0</button>
+                <button class="calc-button h-16 rounded-full text-2xl" data-key="." data-type="number" style="background-color: var(--button-bg); color: var(--button-text-color);">.</button>
+                <button class="calc-button h-16 rounded-full text-2xl" data-key="backspace" data-type="action" style="background-color: var(--button-bg); color: var(--operator-text-color);">⌫</button>
+                <button class="calc-button h-16 rounded-full text-2xl" data-key="=" data-type="action" style="background-color: var(--action-bg); color: var(--action-text-color);">=</button>
             </div>
         </div>
     </div>
 
     <!-- History Modal -->
     <div id="history-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
-        <div class="calculator-body w-full max-w-md rounded-2xl p-6 shadow-lg" style="background-color: #1f1f1f;">
+        <div class="calculator-body w-full max-w-md rounded-2xl p-6 shadow-lg" style="background: #1f1f1f;">
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-2xl font-bold" style="color: var(--display-text-color);">History</h2>
                 <button id="close-history" class="p-2 rounded-full hover:bg-white/10 text-gray-400">
@@ -161,13 +260,13 @@
                 </button>
             </div>
             <div id="history-content" class="max-h-80 overflow-y-auto space-y-2 pr-2"></div>
-            <button id="clear-history" class="mt-4 w-full text-center p-3 rounded-lg" style="background-color: var(--action-bg); color: var(--action-text-color);">Clear History</button>
+            <button id="clear-history" class="mt-4 w-full text-center p-3 rounded-lg font-medium" style="background-color: var(--action-bg); color: var(--action-text-color);">Clear History</button>
         </div>
     </div>
 
     <!-- More Options Modal -->
     <div id="options-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
-        <div class="calculator-body w-full max-w-sm rounded-2xl p-6 shadow-lg" style="background-color: #1f1f1f;">
+        <div class="calculator-body w-full max-w-sm rounded-2xl p-6 shadow-lg" style="background: #1f1f1f;">
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-2xl font-bold" style="color: var(--display-text-color);">Options</h2>
                 <button id="close-options" class="p-2 rounded-full hover:bg-white/10 text-gray-400">
@@ -175,10 +274,19 @@
                 </button>
             </div>
             <div id="options-content" class="space-y-4">
-                 <button id="theme-switcher" class="w-full text-left p-3 rounded-lg flex items-center justify-between" style="background-color: var(--button-bg); color: var(--display-text-color);">
+                <button id="theme-switcher" class="w-full text-left p-4 rounded-xl flex items-center justify-between font-medium" style="background-color: var(--button-bg); color: var(--display-text-color);">
                     <span>Switch Theme</span>
                     <svg id="theme-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-400"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
                 </button>
+                <div class="p-4 rounded-xl" style="background-color: var(--ai-input-bg); color: var(--sub-display-text-color);">
+                    <h3 class="font-semibold mb-2" style="color: var(--display-text-color);">AI Features</h3>
+                    <ul class="text-sm space-y-1">
+                        <li>• Natural language processing</li>
+                        <li>• Advanced math functions</li>
+                        <li>• Unit conversions</li>
+                        <li>• Percentage calculations</li>
+                    </ul>
+                </div>
             </div>
         </div>
     </div>
@@ -188,6 +296,8 @@
             // DOM Elements
             const mainDisplay = document.getElementById('main-display');
             const subDisplay = document.getElementById('sub-display');
+            const aiInput = document.getElementById('ai-input');
+            const suggestions = document.getElementById('suggestions');
             const buttonContainer = document.getElementById('button-container');
             const historyBtn = document.getElementById('history-btn');
             const historyModal = document.getElementById('history-modal');
@@ -205,18 +315,135 @@
                 expression: '',
                 result: '0',
                 history: JSON.parse(localStorage.getItem('calculatorHistory')) || [],
+                aiMode: false
             };
 
             const themes = ['dark', 'light'];
             let currentThemeIndex = 0;
 
+            // ============= AI NATURAL LANGUAGE PROCESSING =============
+            
+            const aiPatterns = [
+                // Percentage calculations
+                { regex: /what is (\d+\.?\d*)%\s*of\s*(\d+\.?\d*)/i, handler: (m) => (parseFloat(m[2]) * parseFloat(m[1]) / 100) },
+                { regex: /(\d+\.?\d*)%\s*of\s*(\d+\.?\d*)/i, handler: (m) => (parseFloat(m[2]) * parseFloat(m[1]) / 100) },
+                
+                // Square root
+                { regex: /square root of (\d+\.?\d*)/i, handler: (m) => Math.sqrt(parseFloat(m[1])) },
+                { regex: /sqrt\((\d+\.?\d*)\)/i, handler: (m) => Math.sqrt(parseFloat(m[1])) },
+                { regex: /√(\d+\.?\d*)/i, handler: (m) => Math.sqrt(parseFloat(m[1])) },
+                
+                // Power
+                { regex: /(\d+\.?\d*)\s*to the power of\s*(\d+\.?\d*)/i, handler: (m) => Math.pow(parseFloat(m[1]), parseFloat(m[2])) },
+                { regex: /(\d+\.?\d*)\s*\^\s*(\d+\.?\d*)/i, handler: (m) => Math.pow(parseFloat(m[1]), parseFloat(m[2])) },
+                { regex: /(\d+\.?\d*)\s*squared/i, handler: (m) => Math.pow(parseFloat(m[1]), 2) },
+                { regex: /(\d+\.?\d*)\s*cubed/i, handler: (m) => Math.pow(parseFloat(m[1]), 3) },
+                
+                // Trigonometry (in degrees)
+                { regex: /sin\s*\(?(\d+\.?\d*)\)?/i, handler: (m) => Math.sin(parseFloat(m[1]) * Math.PI / 180) },
+                { regex: /cos\s*\(?(\d+\.?\d*)\)?/i, handler: (m) => Math.cos(parseFloat(m[1]) * Math.PI / 180) },
+                { regex: /tan\s*\(?(\d+\.?\d*)\)?/i, handler: (m) => Math.tan(parseFloat(m[1]) * Math.PI / 180) },
+                
+                // Temperature conversion
+                { regex: /(\d+\.?\d*)\s*celsius to fahrenheit/i, handler: (m) => (parseFloat(m[1]) * 9/5 + 32) },
+                { regex: /(\d+\.?\d*)\s*fahrenheit to celsius/i, handler: (m) => ((parseFloat(m[1]) - 32) * 5/9) },
+                { regex: /(\d+\.?\d*)\s*c to f/i, handler: (m) => (parseFloat(m[1]) * 9/5 + 32) },
+                { regex: /(\d+\.?\d*)\s*f to c/i, handler: (m) => ((parseFloat(m[1]) - 32) * 5/9) },
+                
+                // Basic unit conversions
+                { regex: /(\d+\.?\d*)\s*km to miles/i, handler: (m) => parseFloat(m[1]) * 0.621371 },
+                { regex: /(\d+\.?\d*)\s*miles to km/i, handler: (m) => parseFloat(m[1]) * 1.60934 },
+                { regex: /(\d+\.?\d*)\s*kg to lbs/i, handler: (m) => parseFloat(m[1]) * 2.20462 },
+                { regex: /(\d+\.?\d*)\s*lbs to kg/i, handler: (m) => parseFloat(m[1]) * 0.453592 },
+                
+                // Time calculations
+                { regex: /(\d+\.?\d*)\s*hours to minutes/i, handler: (m) => parseFloat(m[1]) * 60 },
+                { regex: /(\d+\.?\d*)\s*minutes to hours/i, handler: (m) => parseFloat(m[1]) / 60 },
+                
+                // Simple math expressions
+                { regex: /what is (.+)/i, handler: (m) => evaluateExpression(m[1]) },
+                { regex: /calculate (.+)/i, handler: (m) => evaluateExpression(m[1]) },
+            ];
+
+            const exampleQueries = [
+                "What is 25% of 200?",
+                "Square root of 144",
+                "45 squared",
+                "100 km to miles",
+                "25 celsius to fahrenheit",
+                "What is 15 + 27 × 3?",
+                "sin(30)",
+                "2 to the power of 8"
+            ];
+
+            function processAIQuery(query) {
+                if (!query.trim()) return null;
+
+                // Try to match against AI patterns
+                for (const pattern of aiPatterns) {
+                    const match = query.match(pattern.regex);
+                    if (match) {
+                        try {
+                            const result = pattern.handler(match);
+                            return { result, query };
+                        } catch (error) {
+                            console.error('Pattern handler error:', error);
+                        }
+                    }
+                }
+
+                // If no pattern matches, try to evaluate as expression
+                try {
+                    const result = evaluateExpression(query);
+                    return { result, query };
+                } catch (error) {
+                    return null;
+                }
+            }
+
+            function evaluateExpression(expr) {
+                // Replace common text with operators
+                expr = expr.toLowerCase()
+                    .replace(/times|multiplied by/g, '*')
+                    .replace(/divided by|over/g, '/')
+                    .replace(/plus/g, '+')
+                    .replace(/minus/g, '-')
+                    .replace(/×/g, '*')
+                    .replace(/÷/g, '/')
+                    .replace(/x/g, '*');
+
+                // Sanitize and validate
+                const sanitized = expr.replace(/[^0-9\.\+\-\*\/\(\)\s]/g, '');
+                if (!sanitized || /^[\+\-\*\/\(\)\.]+$/.test(sanitized)) {
+                    throw new Error('Invalid expression');
+                }
+
+                return new Function('return ' + sanitized)();
+            }
+
+            function showSuggestions() {
+                const randomSuggestions = exampleQueries
+                    .sort(() => 0.5 - Math.random())
+                    .slice(0, 3);
+                
+                suggestions.innerHTML = randomSuggestions.map(q => 
+                    `<div class="suggestion-item p-2 px-3 rounded-lg text-sm" style="background-color: var(--ai-input-bg); color: var(--sub-display-text-color);">
+                        ${q}
+                    </div>`
+                ).join('');
+                suggestions.classList.remove('hidden');
+            }
+
+            // ============= CALCULATOR CORE =============
+
             function updateDisplay() {
-                mainDisplay.textContent = state.expression || state.result;
-                subDisplay.textContent = state.expression ? state.result : '';
+                const displayValue = state.aiMode ? state.result : (state.expression || state.result);
+                mainDisplay.textContent = displayValue;
+                subDisplay.textContent = state.expression && !state.aiMode ? state.result : '';
 
                 // Font scaling
-                const displayLength = (state.expression || state.result).length;
-                let fontSize = 3; // rem
+                const displayLength = displayValue.length;
+                let fontSize = 3;
                 if (displayLength > 9) {
                     fontSize = 3 * (9 / displayLength);
                 }
@@ -224,11 +451,9 @@
             }
 
             function sanitizeExpression(expr) {
-                // Replace visual operators with JS operators
-                let sanitized = expr.replace(/×/g, '*').replace(/÷/g, '/');
-                // Basic validation to prevent unsafe code execution
+                let sanitized = expr.replace(/×/g, '*').replace(/÷/g, '/').replace(/−/g, '-');
                 if (/[^0-9\.\+\-\*\/\(\)\s\%]/.test(sanitized)) {
-                    return null; // Invalid characters
+                    return null;
                 }
                 return sanitized;
             }
@@ -241,15 +466,17 @@
                     return;
                 }
                 try {
-                    // Using Function constructor is safer than eval()
                     const result = new Function('return ' + sanitized)();
-                    const fullEntry = `${state.expression} = ${result}`;
+                    const formatted = Number.isInteger(result) ? result : parseFloat(result.toFixed(10));
+                    const fullEntry = `${state.expression} = ${formatted}`;
                     addToHistory(fullEntry);
-                    state.result = String(result);
+                    state.result = String(formatted);
                     state.expression = '';
+                    state.aiMode = false;
                 } catch (error) {
                     state.result = 'Error';
                     state.expression = '';
+                    state.aiMode = false;
                 }
             }
 
@@ -257,16 +484,20 @@
                 const target = event.target.closest('.calc-button');
                 if (!target) return;
 
-                const { key, type } = target.dataset;
+                const { key, type, fn } = target.dataset;
                 vibrate();
                 createRipple(event);
                 
-                if (state.result === 'Error') {
+                if (state.result === 'Error' || state.aiMode) {
                     state.result = '0';
                     state.expression = '';
+                    state.aiMode = false;
                 }
 
-                if (type === 'number' || type === 'operator') {
+                // Handle function buttons
+                if (fn) {
+                    handleFunction(fn);
+                } else if (type === 'number' || type === 'operator') {
                     if (state.expression === '0' && key !== '.') state.expression = '';
                     state.expression += key;
                 } else if (type === 'parentheses') {
@@ -278,6 +509,38 @@
                 updateDisplay();
             }
 
+            function handleFunction(fn) {
+                const lastNum = state.expression.match(/(\d+\.?\d*)$/);
+                const num = lastNum ? parseFloat(lastNum[1]) : 0;
+                
+                switch(fn) {
+                    case 'sqrt':
+                        if (lastNum) {
+                            state.expression = state.expression.replace(/(\d+\.?\d*)$/, Math.sqrt(num));
+                        } else {
+                            state.expression += 'sqrt(';
+                        }
+                        break;
+                    case 'power':
+                        if (lastNum) {
+                            state.expression = state.expression.replace(/(\d+\.?\d*)$/, Math.pow(num, 2));
+                        }
+                        break;
+                    case 'sin':
+                        if (lastNum) {
+                            const result = Math.sin(num * Math.PI / 180);
+                            state.expression = state.expression.replace(/(\d+\.?\d*)$/, result.toFixed(10));
+                        }
+                        break;
+                    case 'cos':
+                        if (lastNum) {
+                            const result = Math.cos(num * Math.PI / 180);
+                            state.expression = state.expression.replace(/(\d+\.?\d*)$/, result.toFixed(10));
+                        }
+                        break;
+                }
+            }
+
             function handleParentheses() {
                 const openParenCount = (state.expression.match(/\(/g) || []).length;
                 const closeParenCount = (state.expression.match(/\)/g) || []).length;
@@ -286,9 +549,9 @@
                 if (lastChar === '' || lastChar === '(' || ['+','-','*','/','%'].includes(lastChar)) {
                     state.expression += '(';
                 } else if (openParenCount > closeParenCount) {
-                     state.expression += ')';
+                    state.expression += ')';
                 } else {
-                     state.expression += '*(';
+                    state.expression += '*(';
                 }
             }
 
@@ -301,15 +564,16 @@
                     case 'AC':
                         state.expression = '';
                         state.result = '0';
+                        state.aiMode = false;
                         break;
-
                     case 'backspace':
                         state.expression = state.expression.slice(0, -1);
                         break;
                 }
             }
 
-             // --- History ---
+            // ============= HISTORY =============
+
             function addToHistory(entry) {
                 state.history.unshift(entry);
                 if (state.history.length > 50) state.history.pop();
@@ -318,12 +582,15 @@
             
             function showHistory() {
                 historyContent.innerHTML = state.history.length ? 
-                    state.history.map(item => `<div class="p-2 rounded-md" style="background-color: var(--button-bg); color: var(--display-text-color);">${item}</div>`).join('') :
-                    `<p style="color: var(--sub-display-text-color);">No history yet.</p>`;
+                    state.history.map(item => 
+                        `<div class="history-item p-3 rounded-lg" style="background-color: var(--button-bg); color: var(--display-text-color);">${item}</div>`
+                    ).join('') :
+                    `<p class="text-center py-8" style="color: var(--sub-display-text-color);">No history yet.</p>`;
                 historyModal.classList.remove('hidden');
             }
 
-            // --- UI & UX ---
+            // ============= UI & UX =============
+
             function createRipple(event) {
                 const button = event.target.closest('.calc-button');
                 if (button) {
@@ -331,9 +598,10 @@
                     const diameter = Math.max(button.clientWidth, button.clientHeight);
                     const radius = diameter / 2;
                     
+                    const rect = button.getBoundingClientRect();
                     circle.style.width = circle.style.height = `${diameter}px`;
-                    circle.style.left = `${event.clientX - (button.offsetLeft + radius)}px`;
-                    circle.style.top = `${event.clientY - (button.offsetTop + radius)}px`;
+                    circle.style.left = `${event.clientX - rect.left - radius}px`;
+                    circle.style.top = `${event.clientY - rect.top - radius}px`;
                     circle.classList.add("ripple");
                     
                     const ripple = button.getElementsByClassName("ripple")[0];
@@ -349,28 +617,74 @@
                 }
             }
 
-            themeSwitcher.addEventListener('click', () => {
-                currentThemeIndex = (currentThemeIndex + 1) % themes.length;
-                const theme = themes[currentThemeIndex];
-                document.documentElement.setAttribute('data-theme', theme);
-                if(theme === 'light') themeIcon.innerHTML = `<path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707.707M6.343 6.343l-.707-.707m12.728 0l-.707-.707M6.343 17.657l-.707.707M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0z"></path>`;
-                else themeIcon.innerHTML = `<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>`;
+            // ============= EVENT LISTENERS =============
+
+            // AI Input handling
+            aiInput.addEventListener('focus', () => {
+                showSuggestions();
             });
 
-            // Event Listeners
+            aiInput.addEventListener('blur', () => {
+                setTimeout(() => suggestions.classList.add('hidden'), 200);
+            });
+
+            aiInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    const query = aiInput.value;
+                    const aiResult = processAIQuery(query);
+                    
+                    if (aiResult) {
+                        state.result = String(aiResult.result);
+                        state.expression = '';
+                        state.aiMode = true;
+                        addToHistory(`${aiResult.query} = ${aiResult.result}`);
+                        aiInput.value = '';
+                        suggestions.classList.add('hidden');
+                        updateDisplay();
+                        vibrate(15);
+                    } else {
+                        // Show error feedback
+                        aiInput.style.borderColor = 'var(--warning-color)';
+                        setTimeout(() => {
+                            aiInput.style.borderColor = '';
+                        }, 500);
+                    }
+                }
+            });
+
+            // Suggestion clicks
+            suggestions.addEventListener('click', (e) => {
+                const item = e.target.closest('.suggestion-item');
+                if (item) {
+                    aiInput.value = item.textContent.trim();
+                    aiInput.focus();
+                    suggestions.classList.add('hidden');
+                }
+            });
+
+            // Calculator button clicks
             buttonContainer.addEventListener('click', handleInteraction);
+
+            // Keyboard support
             document.addEventListener('keydown', (e) => {
-                 const keyMap = {
+                if (document.activeElement === aiInput) return;
+                
+                const keyMap = {
                     'Enter': '=', 'Escape': 'AC', 'Backspace': 'backspace',
-                    '0': '0', '1': '1', '2': '2', '3': '3', '4': '4', '5': '5', '6': '6', '7': '7', '8': '8', '9': '9',
-                    '.': '.', '+': '+', '-': '-', '*': '*', '/': '/', '%': '%', '(': '()', ')': '()'
+                    '0': '0', '1': '1', '2': '2', '3': '3', '4': '4', 
+                    '5': '5', '6': '6', '7': '7', '8': '8', '9': '9',
+                    '.': '.', '+': '+', '-': '-', '*': '*', '/': '/', '%': '%', 
+                    '(': '()', ')': '()'
                 };
+                
                 if (keyMap[e.key]) {
                     e.preventDefault();
                     const button = document.querySelector(`.calc-button[data-key="${keyMap[e.key]}"]`);
                     if (button) button.click();
                 }
             });
+
+            // History modal
             historyBtn.addEventListener('click', showHistory);
             closeHistoryBtn.addEventListener('click', () => historyModal.classList.add('hidden'));
             clearHistoryBtn.addEventListener('click', () => {
@@ -378,8 +692,51 @@
                 localStorage.removeItem('calculatorHistory');
                 showHistory();
             });
+
+            // History item click to reuse
+            historyContent.addEventListener('click', (e) => {
+                const item = e.target.closest('.history-item');
+                if (item) {
+                    const text = item.textContent;
+                    const match = text.match(/(.+?)\s*=\s*(.+)/);
+                    if (match) {
+                        state.expression = match[1].trim();
+                        state.result = match[2].trim();
+                        state.aiMode = false;
+                        updateDisplay();
+                        historyModal.classList.add('hidden');
+                    }
+                }
+            });
+
+            // Options modal
             moreOptionsBtn.addEventListener('click', () => optionsModal.classList.remove('hidden'));
             closeOptionsBtn.addEventListener('click', () => optionsModal.classList.add('hidden'));
+
+            // Theme switcher
+            themeSwitcher.addEventListener('click', () => {
+                currentThemeIndex = (currentThemeIndex + 1) % themes.length;
+                const theme = themes[currentThemeIndex];
+                document.documentElement.setAttribute('data-theme', theme);
+                
+                if(theme === 'light') {
+                    themeIcon.innerHTML = `<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>`;
+                } else {
+                    themeIcon.innerHTML = `<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>`;
+                }
+                
+                localStorage.setItem('theme', theme);
+            });
+
+            // Load saved theme
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme) {
+                currentThemeIndex = themes.indexOf(savedTheme);
+                document.documentElement.setAttribute('data-theme', savedTheme);
+                if(savedTheme === 'light') {
+                    themeIcon.innerHTML = `<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>`;
+                }
+            }
 
             // Initial Load
             updateDisplay();
@@ -387,4 +744,3 @@
     </script>
 </body>
 </html>
-
