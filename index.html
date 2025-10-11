@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Gemini Calculator</title>
+    <title>AI Calculator</title>
 
     <!-- PWA Manifest -->
     <link rel="manifest" href="manifest.json">
@@ -113,6 +113,17 @@
             </button>
         </div>
 
+        <!-- AI Input -->
+        <div class="px-2 pb-2">
+            <label for="ai-input" class="sr-only">Ask AI</label>
+            <div class="flex items-center gap-2">
+                <input id="ai-input" type="text" autocomplete="off" placeholder="Ask: what is 15% of 200?" class="w-full rounded-xl px-4 py-3 text-base outline-none focus:ring-2 focus:ring-blue-500"
+                    style="background-color: var(--button-bg); color: var(--display-text-color);" />
+                <button id="ai-submit" class="rounded-xl px-4 py-3 font-medium"
+                    style="background-color: var(--action-bg); color: var(--action-text-color);">Ask</button>
+            </div>
+        </div>
+
         <!-- Display Area -->
         <div id="display" class="w-full text-right px-2 select-text flex-grow flex flex-col justify-end" aria-live="polite">
             <div id="sub-display" class="h-8 text-lg md:text-xl" style="color: var(--sub-display-text-color);"></div>
@@ -199,6 +210,8 @@
             const closeOptionsBtn = document.getElementById('close-options');
             const themeSwitcher = document.getElementById('theme-switcher');
             const themeIcon = document.getElementById('theme-icon');
+            const aiInput = document.getElementById('ai-input');
+            const aiSubmit = document.getElementById('ai-submit');
 
             // App State
             let state = {
@@ -241,7 +254,6 @@
                     return;
                 }
                 try {
-                    // Using Function constructor is safer than eval()
                     const result = new Function('return ' + sanitized)();
                     const fullEntry = `${state.expression} = ${result}`;
                     addToHistory(fullEntry);
@@ -250,6 +262,176 @@
                 } catch (error) {
                     state.result = 'Error';
                     state.expression = '';
+                }
+            }
+
+            // --- Natural Language Parsing ---
+            function normalizeText(text) {
+                return text
+                    .toLowerCase()
+                    .replace(/[?,!]/g, ' ')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+            }
+
+            function replaceNumberWords(text) {
+                const small = {
+                    'zero': 0, 'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
+                    'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
+                    'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14, 'fifteen': 15,
+                    'sixteen': 16, 'seventeen': 17, 'eighteen': 18, 'nineteen': 19
+                };
+                const tens = {
+                    'twenty': 20, 'thirty': 30, 'forty': 40, 'fifty': 50,
+                    'sixty': 60, 'seventy': 70, 'eighty': 80, 'ninety': 90
+                };
+                const scales = { 'hundred': 100, 'thousand': 1000, 'million': 1000000 };
+
+                const out = [];
+                const tokens = text.split(/\s+/);
+                let current = 0;
+                let building = false;
+                let i = 0;
+                function flush() {
+                    if (building) {
+                        out.push(String(current));
+                        current = 0;
+                        building = false;
+                    }
+                }
+                while (i < tokens.length) {
+                    let t = tokens[i];
+                    if (t.includes('-')) {
+                        const parts = t.split('-');
+                        if (parts.length === 2 && tens[parts[0]] !== undefined && small[parts[1]] !== undefined) {
+                            t = String(tens[parts[0]] + small[parts[1]]);
+                        }
+                    }
+                    if (small[t] !== undefined) {
+                        current += small[t];
+                        building = true;
+                    } else if (tens[t] !== undefined) {
+                        current += tens[t];
+                        building = true;
+                    } else if (scales[t] !== undefined) {
+                        current = (current || 1) * scales[t];
+                        building = true;
+                        if (scales[t] >= 1000) {
+                            out.push(String(current));
+                            current = 0;
+                            building = false;
+                        }
+                    } else if (t === 'point' && building) {
+                        // Parse simple decimals like "three point five"
+                        let frac = '';
+                        i++;
+                        while (i < tokens.length && small[tokens[i]] !== undefined) {
+                            frac += String(small[tokens[i]]);
+                            i++;
+                        }
+                        out.push(String(parseFloat(current + '.' + (frac || '0'))));
+                        current = 0;
+                        building = false;
+                        continue;
+                    } else {
+                        flush();
+                        out.push(t);
+                    }
+                    i++;
+                }
+                flush();
+                return out.join(' ');
+            }
+
+            function nlToExpression(query) {
+                let q = normalizeText(query);
+                q = q.replace(/^what is\s+|^calculate\s+|^compute\s+|^please\s+/g, '');
+                q = q.replace(/π|pi/g, ' 3.141592653589793 ');
+                q = q.replace(/\be\b/g, ' 2.718281828459045 ');
+                q = replaceNumberWords(q);
+
+                // Percent of patterns
+                const percentOfRegex = /([+-]?\d+(?:\.\d+)?)\s*(?:%|percent)\s+of\s+([+-]?\d+(?:\.\d+)?)/;
+                const incDecRegex = /(increase|decrease)\s+([+-]?\d+(?:\.\d+)?)\s+by\s+([+-]?\d+(?:\.\d+)?)\s*(?:%|percent)/;
+                const subtractFromRegex = /subtract\s+([+-]?\d+(?:\.\d+)?)\s+from\s+([+-]?\d+(?:\.\d+)?)/;
+                const powerRegex = /([+-]?\d+(?:\.\d+)?)\s+(?:to the power of|power of|raised to)\s+([+-]?\d+(?:\.\d+)?)/;
+                const sqrtRegex = /square root of\s+([+-]?\d+(?:\.\d+)?)/;
+                const cbrtRegex = /cube root of\s+([+-]?\d+(?:\.\d+)?)/;
+
+                if (percentOfRegex.test(q)) {
+                    const m = q.match(percentOfRegex);
+                    const a = parseFloat(m[1]);
+                    const b = parseFloat(m[2]);
+                    return `(${b} * (${a} / 100))`;
+                }
+                if (incDecRegex.test(q)) {
+                    const m = q.match(incDecRegex);
+                    const op = m[1];
+                    const base = parseFloat(m[2]);
+                    const pct = parseFloat(m[3]);
+                    return op === 'increase' ? `(${base} * (1 + ${pct}/100))` : `(${base} * (1 - ${pct}/100))`;
+                }
+                if (subtractFromRegex.test(q)) {
+                    const m = q.match(subtractFromRegex);
+                    const a = parseFloat(m[1]);
+                    const b = parseFloat(m[2]);
+                    return `(${b} - ${a})`;
+                }
+                if (powerRegex.test(q)) {
+                    const m = q.match(powerRegex);
+                    return `(${m[1]} ** ${m[2]})`;
+                }
+                if (sqrtRegex.test(q)) {
+                    const m = q.match(sqrtRegex);
+                    return `(${parseFloat(m[1])} ** 0.5)`;
+                }
+                if (cbrtRegex.test(q)) {
+                    const m = q.match(cbrtRegex);
+                    return `(${parseFloat(m[1])} ** (1/3))`;
+                }
+
+                // Generic word operators
+                q = q
+                    .replace(/multiplied by|times|x/g, '*')
+                    .replace(/plus|add|and/g, '+')
+                    .replace(/minus|subtract/g, '-')
+                    .replace(/divided by|divide|over/g, '/')
+                    .replace(/to the power of|power of|raised to/g, '**')
+                    .replace(/percent/g, '%');
+
+                // 50% of 200
+                const pctSymOf = /(\d+(?:\.\d+)?)\s*%\s+of\s+(\d+(?:\.\d+)?)/;
+                if (pctSymOf.test(q)) {
+                    const m = q.match(pctSymOf);
+                    return `(${parseFloat(m[2])} * (${parseFloat(m[1])} / 100))`;
+                }
+
+                // Remove residual stopwords
+                q = q.replace(/\b(of|the|a|an)\b/g, ' ').replace(/\s+/g, ' ').trim();
+                return q;
+            }
+
+            function handleAiQuery() {
+                const query = aiInput.value.trim();
+                if (!query) return;
+                const expr = nlToExpression(query);
+                if (!expr) return;
+                const sanitized = sanitizeExpression(expr);
+                if (sanitized === null) {
+                    state.result = 'Error';
+                    updateDisplay();
+                    return;
+                }
+                try {
+                    const result = new Function('return ' + sanitized)();
+                    state.result = String(result);
+                    state.expression = '';
+                    addToHistory(`AI: ${query} = ${result}`);
+                    updateDisplay();
+                } catch (e) {
+                    state.result = 'Error';
+                    state.expression = '';
+                    updateDisplay();
                 }
             }
 
@@ -349,6 +531,15 @@
                 }
             }
 
+            // Copy to clipboard on result click
+            mainDisplay.addEventListener('click', async () => {
+                try {
+                    await navigator.clipboard.writeText(state.expression || state.result);
+                    subDisplay.textContent = 'Copied';
+                    setTimeout(() => updateDisplay(), 800);
+                } catch {}
+            });
+
             themeSwitcher.addEventListener('click', () => {
                 currentThemeIndex = (currentThemeIndex + 1) % themes.length;
                 const theme = themes[currentThemeIndex];
@@ -369,6 +560,9 @@
                     e.preventDefault();
                     const button = document.querySelector(`.calc-button[data-key="${keyMap[e.key]}"]`);
                     if (button) button.click();
+                } else if (e.key === 'Enter' && document.activeElement === aiInput) {
+                    e.preventDefault();
+                    handleAiQuery();
                 }
             });
             historyBtn.addEventListener('click', showHistory);
@@ -380,6 +574,7 @@
             });
             moreOptionsBtn.addEventListener('click', () => optionsModal.classList.remove('hidden'));
             closeOptionsBtn.addEventListener('click', () => optionsModal.classList.add('hidden'));
+            aiSubmit.addEventListener('click', handleAiQuery);
 
             // Initial Load
             updateDisplay();
